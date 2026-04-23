@@ -10,5 +10,5 @@
 .vscode/
 *.code-workspace
 
-# MZinga local clone
-mzinga/
+# # MZinga local clone
+# mzinga/
