@@ -9,6 +9,11 @@
 # VSCode
 .vscode/
 *.code-workspace
+package-lock.json
 
 # # MZinga local clone
 # mzinga/
+
+#Lab01
+lab1-worker/.venv/
+mzinga/mzinga-apps/.env

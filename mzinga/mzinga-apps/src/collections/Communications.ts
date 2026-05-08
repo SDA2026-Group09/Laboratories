@@ -33,17 +33,22 @@ const Communications: CollectionConfig = {
   hooks: {
     afterChange: [
       async ({ doc }) => {
-        if (process.env.COMMUNICATIONS_EXTERNAL_WORKER === "true") {
-          if (!doc.status) {
-            await payload.update({
-              collection: Slugs.Communications,
-              id: doc.id,
-              data: { status: "pending" },
-            });
-          }
+
+        if (doc.status === "pending" || doc.status === "sent") {
           return doc;
         }
 
+        //Case: the responsability of sending the communication is given to the worker
+        if (process.env.COMMUNICATIONS_EXTERNAL_WORKER === "true") {
+          await payload.update({
+            collection: Slugs.Communications,
+            id: doc.id,
+            data: { status: "pending" },
+          });
+          return doc;
+        }
+
+        //Case: the responsability of sending the communication remains in this hook
         const { tos, ccs, bccs, subject, body } = doc;
         for (const part of body) {
           if (part.type !== "upload") {
@@ -115,6 +120,11 @@ const Communications: CollectionConfig = {
             );
           }
           await Promise.all(promises.filter((p) => Boolean(p)));
+          await payload.update({
+            collection: Slugs.Communications,
+            id: doc.id,
+            data: { status: "sent" },
+          });
           return doc;
         } catch (err) {
           if (err.response && err.response.body && err.response.body.errors) {
