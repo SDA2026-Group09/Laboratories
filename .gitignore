@@ -17,3 +17,6 @@ package-lock.json
 #Lab01
 lab1-worker/.venv/
 mzinga/mzinga-apps/.env
+
+#Lab02
+lab2-worker-rest/.venv

@@ -8,8 +8,8 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv()
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger(__name__)
 
 MZINGA_URL = os.getenv('MZINGA_URL', 'http://localhost:3000')
 MZINGA_EMAIL = os.getenv('MZINGA_EMAIL')
@@ -21,6 +21,7 @@ EMAIL_FROM = os.getenv('EMAIL_FROM', 'worker@mzinga.io')
 
 token = None
 
+#Login request for obtaining the bearer JWT 
 def authenticate():
     global token
     logging.info('Authenticating with MZinga...')
@@ -35,6 +36,7 @@ def authenticate():
 def get_headers():
     return {'Authorization': f'Bearer {token}'}
 
+#Request the pending communications using the API
 def get_pending_documents():
     response = requests.get(
         f'{MZINGA_URL}/api/communications',
@@ -47,6 +49,7 @@ def get_pending_documents():
     response.raise_for_status()
     return response.json().get('docs', [])
 
+#Update the status of the email
 def update_status(doc_id, status):
     response = requests.patch(
         f'{MZINGA_URL}/api/communications/{doc_id}',
@@ -59,6 +62,7 @@ def update_status(doc_id, status):
         return
     response.raise_for_status()
 
+#Create the email body starting from the JSON format
 def serialize_slate(nodes):
     if not nodes:
         return ''
@@ -91,6 +95,7 @@ def serialize_slate(nodes):
                 html += f'<p>{children}</p>'
     return html
 
+#Extract the emails from the JSON object
 def extract_emails(relationships):
     if not relationships:
         return []
@@ -117,6 +122,7 @@ def send_email(to_list, cc_list, bcc_list, subject, html_body):
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
         server.sendmail(EMAIL_FROM, all_recipients, msg.as_string())
 
+#Create the email starting from the JSON format
 def process_document(doc):
     doc_id = doc['id']
     logging.info(f'Processing document {doc_id}')
