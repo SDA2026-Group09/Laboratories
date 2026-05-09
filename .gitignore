@@ -20,3 +20,4 @@ mzinga/mzinga-apps/.env
 
 #Lab02
 lab2-worker-rest/.venv
+lab2-worker-events/.venv
