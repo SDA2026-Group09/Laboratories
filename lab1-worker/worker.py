@@ -1,25 +1,30 @@
 import os
 import time
 import smtplib
+import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-
 from dotenv import load_dotenv
 from pymongo import MongoClient
-from bson.objectid import ObjectId
+from bson import ObjectId
 
+#For logs
 load_dotenv()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger(__name__)
 
+#Environment variables
 MONGODB_URI = os.getenv("MONGODB_URI")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL_SECONDS", "5"))
 SMTP_HOST = os.getenv("SMTP_HOST", "localhost")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "1025"))
 EMAIL_FROM = os.getenv("EMAIL_FROM", "worker@mzinga.io")
 
+#For the DB
 client = MongoClient(MONGODB_URI)
 db = client["mzinga"]
 
-
+#For processing the body message
 def serialize_slate(nodes):
     if not nodes:
         return ""
@@ -49,7 +54,7 @@ def serialize_slate(nodes):
             html += serialize_leaf(node)
     return html
 
-
+#For processing the body message
 def serialize_children(children):
     html = ""
     for child in children:
@@ -59,7 +64,7 @@ def serialize_children(children):
             html += serialize_leaf(child)
     return html
 
-
+#For processing the body message
 def serialize_leaf(leaf):
     text = leaf.get("text", "")
     if leaf.get("bold"):
@@ -70,7 +75,7 @@ def serialize_leaf(leaf):
         text = f"<u>{text}</u>"
     return text
 
-
+#Return the users involved in refs
 def resolve_emails(refs):
     if not refs:
         return []
@@ -95,19 +100,19 @@ def process_document(doc):
     db["communications"].update_one(
         {"_id": doc_id}, {"$set": {"status": "processing"}}
     )
-    print(f"[worker] Processing {doc_id}")
+    log.info(f"[worker] Processing {doc_id}")
 
     try:
+        #Query the DB for obtaining the data
         to_emails = resolve_emails(doc.get("tos", []))
-        cc_emails = resolve_emails(doc.get("ccs", []))
-        bcc_emails = resolve_emails(doc.get("bccs", []))
-
         if not to_emails:
             raise Exception("No valid recipient email addresses found")
-
+        cc_emails = resolve_emails(doc.get("ccs", []))
+        bcc_emails = resolve_emails(doc.get("bccs", []))
         subject = doc.get("subject", "(no subject)")
         body_html = serialize_slate(doc.get("body", []))
 
+        #Send the email
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
             for to in to_emails:
                 msg = MIMEMultipart("alternative")
@@ -122,22 +127,23 @@ def process_document(doc):
 
                 recipients = [to] + cc_emails + bcc_emails
                 server.sendmail(EMAIL_FROM, recipients, msg.as_string())
-                print(f"[worker] Sent to {to}")
+                log.info(f"[worker] Sent to {to}")
 
+        #Update the state
         db["communications"].update_one(
             {"_id": doc_id}, {"$set": {"status": "sent"}}
         )
-        print(f"[worker] Marked {doc_id} as sent")
+        log.info(f"[worker] Marked {doc_id} as sent")
 
     except Exception as e:
-        print(f"[worker] Failed {doc_id}: {e}")
+        log.error(f"[worker] Failed {doc_id}: {e}")
         db["communications"].update_one(
             {"_id": doc_id}, {"$set": {"status": "failed"}}
         )
 
 
 def main():
-    print(f"[worker] Starting — polling every {POLL_INTERVAL}s")
+    log.info(f"[worker] Starting — polling every {POLL_INTERVAL}s")
     while True:
         doc = db["communications"].find_one({"status": "pending"})
         if doc:

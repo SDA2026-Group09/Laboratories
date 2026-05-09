@@ -29,111 +29,116 @@ const Communications: CollectionConfig = {
     enableRichTextRelationship: false,
   },
   hooks: {
-   afterChange: [
-  async ({ doc, req, context, operation }) => {
-    if ((context as any)?.skipAfterChange) {
-      return doc;
-    }
-    if (process.env.COMMUNICATIONS_EXTERNAL_WORKER === 'true') {
-      if (operation !== 'create') {
-        return doc;
-      }
-      await req.payload.update({
-        collection: 'communications',
-        id: doc.id,
-        data: { status: 'pending' },
-        context: { skipAfterChange: true },
-      });
-      return doc;
-    }
-    const { tos, ccs, bccs, subject, body } = doc;
-    for (const part of body) {
-      if (part.type !== "upload") {
-        continue;
-      }
-      const relationToSlug = part.relationTo;
-      const doc = await payload.findByID({
-        collection: relationToSlug,
-        id: part.value.id,
-      });
-      part.value = {
-        ...part.value,
-        ...doc,
-      };
-    }
-    const html = TextUtils.Serialize(body || "");
-    try {
-      const users = await payload.find({
-        collection: tos[0].relationTo,
-        where: {
-          id: {
-            in: tos.map((to) => to.value.id || to.value).join(","),
-          },
-        },
-      });
-      const usersEmails = users.docs.map((u) => u.email);
-      if (!usersEmails.length) {
-        throw new Error("No valid email addresses found for 'tos' users.");
-      }
-      let cc;
-      if (ccs) {
-        const copiedusers = await payload.find({
-          collection: ccs[0].relationTo,
-          where: {
-            id: {
-              in: ccs.map((cc) => cc.value.id).join(","),
+    afterChange: [
+      async ({ doc }) => {
+        if (doc.status === "pending" || doc.status === "sent") {
+          return doc;
+        }
+
+        //Case: the responsability of sending the communication is given to the worker
+        if (process.env.COMMUNICATIONS_EXTERNAL_WORKER === "true") {
+          await payload.update({
+            collection: Slugs.Communications,
+            id: doc.id,
+            data: { status: "pending" },
+          });
+          return doc;
+        }
+
+        //Case: the responsability of sending the communication remains in this hook
+        const { tos, ccs, bccs, subject, body } = doc;
+        for (const part of body) {
+          if (part.type !== "upload") {
+            continue;
+          }
+          const relationToSlug = part.relationTo;
+          const doc = await payload.findByID({
+            collection: relationToSlug,
+            id: part.value.id,
+          });
+          part.value = {
+            ...part.value,
+            ...doc,
+          };
+        }
+        const html = TextUtils.Serialize(body || "");
+        try {
+          const users = await payload.find({
+            collection: tos[0].relationTo,
+            where: {
+              id: {
+                in: tos.map((to) => to.value.id || to.value).join(","),
+              },
             },
-          },
-        });
-        cc = copiedusers.docs.map((u) => u.email).join(",");
-      }
-      let bcc;
-      if (bccs) {
-        const blindcopiedusers = await payload.find({
-          collection: bccs[0].relationTo,
-          where: {
-            id: {
-              in: bccs.map((bcc) => bcc.value.id).join(","),
-            },
-          },
-        });
-        bcc = blindcopiedusers.docs.map((u) => u.email).join(",");
-      }
-      const promises = [];
-      for (const to of usersEmails) {
-        const message = {
-          from: payload.emailOptions.fromAddress,
-          subject,
-          to,
-          cc,
-          bcc,
-          html,
-        };
-        promises.push(
-          MailUtils.sendMail(payload, message).catch((e) => {
-            MZingaLogger.Instance?.error(`[Communications:err] ${e}`);
-            return null;
-          }),
-        );
-      }
-      await Promise.all(promises.filter((p) => Boolean(p)));
-      return doc;
-    } catch (err) {
-      if (err.response && err.response.body && err.response.body.errors) {
-        err.response.body.errors.forEach((error) =>
-          MZingaLogger.Instance?.error(
-            `[Communications:err]
-            ${error.field}
-            ${error.message}`,
-          ),
-        );
-      } else {
-        MZingaLogger.Instance?.error(`[Communications:err] ${err}`);
-      }
-      throw err;
-    }
-  },
-],
+          });
+          const usersEmails = users.docs.map((u) => u.email);
+          if (!usersEmails.length) {
+            throw new Error("No valid email addresses found for 'tos' users.");
+          }
+          let cc;
+          if (ccs) {
+            const copiedusers = await payload.find({
+              collection: ccs[0].relationTo,
+              where: {
+                id: {
+                  in: ccs.map((cc) => cc.value.id).join(","),
+                },
+              },
+            });
+            cc = copiedusers.docs.map((u) => u.email).join(",");
+          }
+          let bcc;
+          if (bccs) {
+            const blindcopiedusers = await payload.find({
+              collection: bccs[0].relationTo,
+              where: {
+                id: {
+                  in: bccs.map((bcc) => bcc.value.id).join(","),
+                },
+              },
+            });
+            bcc = blindcopiedusers.docs.map((u) => u.email).join(",");
+          }
+          const promises = [];
+          for (const to of usersEmails) {
+            const message = {
+              from: payload.emailOptions.fromAddress,
+              subject,
+              to,
+              cc,
+              bcc,
+              html,
+            };
+            promises.push(
+              MailUtils.sendMail(payload, message).catch((e) => {
+                MZingaLogger.Instance?.error(`[Communications:err] ${e}`);
+                return null;
+              }),
+            );
+          }
+          await Promise.all(promises.filter((p) => Boolean(p)));
+          await payload.update({
+            collection: Slugs.Communications,
+            id: doc.id,
+            data: { status: "sent" },
+          });
+          return doc;
+        } catch (err) {
+          if (err.response && err.response.body && err.response.body.errors) {
+            err.response.body.errors.forEach((error) =>
+              MZingaLogger.Instance?.error(
+                `[Communications:err]
+                ${error.field}
+                ${error.message}`,
+              ),
+            );
+          } else {
+            MZingaLogger.Instance?.error(`[Communications:err] ${err}`);
+          }
+          throw err;
+        }
+      },
+    ],
   },
   fields: [
     {
