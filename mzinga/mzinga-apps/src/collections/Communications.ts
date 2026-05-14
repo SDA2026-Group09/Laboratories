@@ -240,7 +240,7 @@ const Communications: CollectionConfig = {
     { label: 'Failed', value: 'failed' },
   ],
   admin: {
-    readOnly: true,
+    readOnly: false,
     position: 'sidebar',
   },
 },
