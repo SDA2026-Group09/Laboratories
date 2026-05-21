@@ -31,7 +31,7 @@ const Communications: CollectionConfig = {
   hooks: {
     afterChange: [
       async ({ doc }) => {
-        if (doc.status === "pending" || doc.status === "sent") {
+        if (doc.status === "pending" || doc.status === "sent" || doc.status === "failed") {
           return doc;
         }
 
