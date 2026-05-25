@@ -11,6 +11,9 @@
 *.code-workspace
 package-lock.json
 
+# Idea
+.idea/
+
 # # MZinga local clone
 # mzinga/
 
@@ -20,7 +23,10 @@ mzinga/mzinga-apps/.env
 
 #Lab02
 lab2-worker-rest/.venv
+lab2-worker-rest/.env
 lab2-worker-events/.venv
+lab2-worker-events/.env
 
 #Lab03
 lab3-worker-observable/.venv
+lab3-worker-observable/.env
