@@ -1,0 +1,20 @@
+apiVersion: v2
+name: mzinga-lab3
+description: MZinga Lab 3 — observable email worker with full infrastructure stack
+type: application
+version: 1.0.0        # chart version — increment when the chart itself changes
+appVersion: "0.9.3"   # mzinga-apps version — informational, shown in helm list
+
+dependencies:
+  - name: mongodb
+    version: "15.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    alias: mongodb
+  - name: rabbitmq
+    version: "14.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    alias: rabbitmq
+  - name: redis
+    version: "19.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    alias: redis

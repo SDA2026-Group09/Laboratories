@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-mzinga-apps
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    app: {{ .Release.Name }}-mzinga-apps
+  ports:
+    - port: {{ .Values.mzingaApps.service.port }}
+      targetPort: {{ .Values.mzingaApps.service.port }}

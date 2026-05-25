@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-email-worker
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.emailWorker.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-email-worker
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-email-worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.emailWorker.service.prometheusPort | quote }}
+    spec:
+      containers:
+        - name: email-worker
+          image: "{{ .Values.emailWorker.image.repository }}:{{ .Values.emailWorker.image.tag }}"
+          imagePullPolicy: {{ .Values.emailWorker.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.emailWorker.service.prometheusPort }}
+              name: metrics
+          env:
+            - name: MZINGA_URL
+              value: "http://{{ .Release.Name }}-mzinga-apps:{{ .Values.mzingaApps.service.port }}"
+            - name: MZINGA_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-worker-credentials
+                  key: mzinga-email
+            - name: MZINGA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-worker-credentials
+                  key: mzinga-password
+            - name: SMTP_HOST
+              value: {{ .Values.emailWorker.env.smtpHost | quote }}
+            - name: SMTP_PORT
+              value: {{ .Values.emailWorker.env.smtpPort | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://{{ .Release.Name }}-jaeger:4318"
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Values.emailWorker.env.otlpServiceName | quote }}
+            - name: PROMETHEUS_PORT
+              value: {{ .Values.emailWorker.service.prometheusPort | quote }}

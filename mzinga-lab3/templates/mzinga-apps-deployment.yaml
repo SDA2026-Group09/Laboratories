@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-mzinga-apps
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.mzingaApps.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-mzinga-apps
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-mzinga-apps
+    spec:
+      containers:
+        - name: mzinga-apps
+          image: "{{ .Values.mzingaApps.image.repository }}:{{ .Values.mzingaApps.image.tag }}"
+          imagePullPolicy: {{ .Values.mzingaApps.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.mzingaApps.service.port }}
+          env:
+            - name: MONGODB_URI
+              value: "mongodb://{{ .Release.Name }}-mongodb:27017/mzinga"
+            - name: RABBITMQ_URL
+              value: "amqp://{{ .Values.rabbitmq.auth.username }}:{{ .Values.rabbitmq.auth.password }}@{{ .Release.Name }}-rabbitmq:5672"
+            - name: REDIS_URI
+              value: "redis://{{ .Release.Name }}-redis-master:6379"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://{{ .Release.Name }}-jaeger:4318"
+            - name: OTEL_SERVICE_NAME
+              value: "mzinga-apps"
+            - name: TENANT
+              value: {{ .Values.mzingaApps.env.tenantId | quote }}
+            - name: PAYLOAD_SECRET
+              value: {{ .Values.mzingaApps.env.payloadSecret | quote }}
+            - name: CORS_CONFIGS
+              value: {{ .Values.mzingaApps.env.corsConfigs | quote }}
+          readinessProbe:
+            httpGet:
+              path: /api/healthz
+              port: {{ .Values.mzingaApps.service.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 10
